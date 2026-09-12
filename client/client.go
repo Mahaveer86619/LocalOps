@@ -15,7 +15,9 @@ import (
 // must never be the reason a production job fails).
 type transport interface {
 	createTask(ctx context.Context, req createTaskRequest) (id string, ok bool)
-	updateTask(ctx context.Context, id string, progress int, status, description string)
+	// updateTask reports progress and a free-text status message, stored
+	// server-side as the task's description - never its lifecycle status.
+	updateTask(ctx context.Context, id string, progress int, statusMessage string)
 	heartbeat(ctx context.Context, id string)
 	completeTask(ctx context.Context, id string)
 	failTask(ctx context.Context, id string, errMsg string)
@@ -30,8 +32,7 @@ type noopTransport struct{}
 func (noopTransport) createTask(ctx context.Context, req createTaskRequest) (string, bool) {
 	return "", false
 }
-func (noopTransport) updateTask(ctx context.Context, id string, progress int, status, description string) {
-}
+func (noopTransport) updateTask(ctx context.Context, id string, progress int, statusMessage string) {}
 func (noopTransport) heartbeat(ctx context.Context, id string)                             {}
 func (noopTransport) completeTask(ctx context.Context, id string)                          {}
 func (noopTransport) failTask(ctx context.Context, id string, errMsg string)               {}
@@ -140,11 +141,10 @@ func (t *httpTransport) createTask(ctx context.Context, req createTaskRequest) (
 	return out.ID, true
 }
 
-func (t *httpTransport) updateTask(ctx context.Context, id string, progress int, status, description string) {
+func (t *httpTransport) updateTask(ctx context.Context, id string, progress int, statusMessage string) {
 	t.do(ctx, http.MethodPost, fmt.Sprintf("/tasks/%s/update", id), map[string]any{
 		"progress":    progress,
-		"status":      status,
-		"description": description,
+		"description": statusMessage,
 	})
 }
 

@@ -23,6 +23,19 @@ const (
 	StatusStopped   Status = "stopped"
 )
 
+// Valid reports whether s is one of the known lifecycle states. Used to
+// reject arbitrary text arriving in the "status" field of a raw API/CLI
+// update call - the Go SDK never sends this field at all (see
+// client.Handle.Update), only Description carries free text.
+func (s Status) Valid() bool {
+	switch s {
+	case StatusCreated, StatusQueued, StatusRunning, StatusPaused, StatusCompleted, StatusFailed, StatusCancelled, StatusStopped:
+		return true
+	default:
+		return false
+	}
+}
+
 // Terminal reports whether the status ends the task's lifecycle - no
 // further updates/heartbeats/control actions are meaningful after this.
 func (s Status) Terminal() bool {

@@ -125,12 +125,17 @@ func (h *Handle) ID() string { return h.id }
 // an external cancel/stop request for this task.
 func (h *Handle) Context() context.Context { return h.ctx }
 
-// Update reports progress (0-100) and a human-readable status/description.
+// Update reports progress (0-100) and a human-readable status message -
+// free text describing what the task is doing right now (e.g. "Fetching
+// pending records", "connected", "not connected"). This is NOT the task's
+// lifecycle status (created/running/completed/...); that only ever
+// changes via Complete/Fail or a server-side control action. Free text
+// here is stored in the task's description field for exactly that reason.
 func (h *Handle) Update(progress int, status string) {
 	if !h.active {
 		return
 	}
-	h.tr.updateTask(h.ctx, h.id, progress, status, "")
+	h.tr.updateTask(h.ctx, h.id, progress, status)
 }
 
 // UpdateDetails merges/replaces the task's arbitrary JSON details.
