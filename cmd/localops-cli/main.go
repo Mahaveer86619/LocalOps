@@ -144,13 +144,26 @@ func postBody(path, jsonBody string, out any) error {
 }
 
 type task struct {
-	ID          string `json:"id"`
-	Server      string `json:"server"`
-	Type        string `json:"type"`
-	Status      string `json:"status"`
-	Progress    int    `json:"progress"`
-	Description string `json:"description"`
-	Error       string `json:"error,omitempty"`
+	ID          string         `json:"id"`
+	Server      string         `json:"server"`
+	Type        string         `json:"type"`
+	Status      string         `json:"status"`
+	Progress    int            `json:"progress"`
+	Description string         `json:"description"`
+	Details     map[string]any `json:"details,omitempty"`
+	Error       string         `json:"error,omitempty"`
+}
+
+// title returns the task's fixed "what is this" title if one was stored
+// in details.title at creation (see scripts/task-lib.sh), falling back
+// to its type - a long-running task whose description is overwritten
+// with rolling status text (e.g. "connected") would otherwise be
+// indistinguishable from any other task of the same type in a list.
+func (t task) title() string {
+	if v, ok := t.Details["title"].(string); ok && v != "" {
+		return v
+	}
+	return t.Type
 }
 
 type watcher struct {
@@ -194,7 +207,7 @@ func cmdStatus() error {
 		fmt.Println("(none)")
 	}
 	for _, t := range running {
-		fmt.Printf("* %-10s %3d%%  %s\n", t.ID, t.Progress, t.Description)
+		fmt.Printf("* %-20s %3d%%  %-28s %s\n", t.ID, t.Progress, t.title(), t.Description)
 	}
 
 	fmt.Println()
@@ -224,7 +237,7 @@ func cmdTasks(filter string) error {
 		return err
 	}
 	for _, t := range list {
-		fmt.Printf("%-10s %-10s %-8s %3d%%  %s\n", t.ID, t.Type, t.Status, t.Progress, t.Description)
+		fmt.Printf("%-20s %-9s %3d%%  %-28s %s\n", t.ID, t.Status, t.Progress, t.title(), t.Description)
 	}
 	return nil
 }

@@ -23,11 +23,17 @@ _task_extract_id() {
 # id (empty if LocalOps is disabled/unreachable - callers should treat an
 # empty id as "fine, just don't bother calling update/heartbeat/stop", or
 # simply keep calling them: they're safe no-ops on an empty id).
+#
+# DESCRIPTION is stored both as the task's initial description AND as
+# details.title - task_update below only ever overwrites the description
+# (with rolling status text like "connected"/"down"), so details.title is
+# what survives as "what is this task" once the description has moved on
+# to reflect current status instead of the original purpose.
 task_create() {
   local server="$1" type="$2" description="$3"
   curl -s -X POST "$LOCALOPS_URL/tasks" \
     -H 'Content-Type: application/json' \
-    -d "{\"server\":\"$server\",\"type\":\"$type\",\"description\":\"$description\"}" 2>/dev/null \
+    -d "{\"server\":\"$server\",\"type\":\"$type\",\"description\":\"$description\",\"details\":{\"title\":\"$description\"}}" 2>/dev/null \
     | _task_extract_id
 }
 
