@@ -65,6 +65,21 @@ func main() {
 		err = cmdSystem()
 	case "health":
 		err = cmdHealth()
+	case "notify":
+		if len(args) < 2 {
+			usage()
+			os.Exit(1)
+		}
+		level, source := "info", "cli"
+		if len(args) > 2 {
+			level = args[2]
+		}
+		if len(args) > 3 {
+			source = args[3]
+		}
+		err = cmdNotify(args[1], level, source)
+	case "notifications":
+		err = cmdNotifications()
 	default:
 		usage()
 		os.Exit(1)
@@ -89,6 +104,8 @@ Usage:
   localops-cli watcher <name> events
   localops-cli system
   localops-cli health
+  localops-cli notify "<message>" [level] [source]   # force an immediate Slack message, no debounce
+  localops-cli notifications                          # recent force-notify history
 
 Set LOCALOPS_URL to point at a non-default server (default http://localhost:7717).`)
 }
@@ -107,7 +124,11 @@ func get(path string, out any) error {
 }
 
 func post(path string, out any) error {
-	resp, err := httpClient.Post(baseURL()+path, "application/json", strings.NewReader("{}"))
+	return postBody(path, "{}", out)
+}
+
+func postBody(path, jsonBody string, out any) error {
+	resp, err := httpClient.Post(baseURL()+path, "application/json", strings.NewReader(jsonBody))
 	if err != nil {
 		return err
 	}
@@ -281,5 +302,30 @@ func cmdHealth() error {
 	}
 	b, _ := json.MarshalIndent(health, "", "  ")
 	fmt.Println(string(b))
+	return nil
+}
+
+func cmdNotify(message, level, source string) error {
+	payload, _ := json.Marshal(map[string]string{"message": message, "level": level, "source": source})
+	var n map[string]any
+	if err := postBody("/notify", string(payload), &n); err != nil {
+		return err
+	}
+	fmt.Printf("sent (id=%v)\n", n["id"])
+	return nil
+}
+
+func cmdNotifications() error {
+	var list []map[string]any
+	if err := get("/notifications", &list); err != nil {
+		return err
+	}
+	for _, n := range list {
+		src := ""
+		if s, ok := n["source"].(string); ok && s != "" {
+			src = " [" + s + "]"
+		}
+		fmt.Printf("%s  %-9s%s  %s\n", n["created_at"], n["level"], src, n["message"])
+	}
 	return nil
 }

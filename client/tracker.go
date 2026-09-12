@@ -59,7 +59,7 @@ func activeTransport() transport {
 // classify it (see README §5); Details is arbitrary JSON the application
 // understands and LocalOps just stores and returns.
 type Task struct {
-	Server      string         // defaults to the process-wide Config.Server if empty
+	Server      string // defaults to the process-wide Config.Server if empty
 	Type        string
 	Description string
 	Details     map[string]any

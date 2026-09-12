@@ -10,6 +10,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 
+	"github.com/Mahaveer86619/LocalOps/internal/notifications"
 	"github.com/Mahaveer86619/LocalOps/internal/scheduler"
 	"github.com/Mahaveer86619/LocalOps/internal/system"
 	"github.com/Mahaveer86619/LocalOps/internal/tasks"
@@ -19,26 +20,28 @@ import (
 type Server struct {
 	Echo *echo.Echo
 
-	tasks     *tasks.Store
-	watchers  *watchers.Service
-	schedules *scheduler.Store
-	diskPath  string
-	startedAt time.Time
+	tasks         *tasks.Store
+	watchers      *watchers.Service
+	schedules     *scheduler.Store
+	notifications *notifications.Store
+	diskPath      string
+	startedAt     time.Time
 }
 
-func New(taskStore *tasks.Store, watcherSvc *watchers.Service, scheduleStore *scheduler.Store, diskPath string) *Server {
+func New(taskStore *tasks.Store, watcherSvc *watchers.Service, scheduleStore *scheduler.Store, notificationStore *notifications.Store, diskPath string) *Server {
 	e := echo.New()
 	e.HideBanner = true
 	e.Use(middleware.Recover())
 	e.Use(middleware.Logger())
 
 	s := &Server{
-		Echo:      e,
-		tasks:     taskStore,
-		watchers:  watcherSvc,
-		schedules: scheduleStore,
-		diskPath:  diskPath,
-		startedAt: time.Now().UTC(),
+		Echo:          e,
+		tasks:         taskStore,
+		watchers:      watcherSvc,
+		schedules:     scheduleStore,
+		notifications: notificationStore,
+		diskPath:      diskPath,
+		startedAt:     time.Now().UTC(),
 	}
 	s.routes()
 	return s
@@ -72,6 +75,9 @@ func (s *Server) routes() {
 
 	e.POST("/schedules", s.handleCreateSchedule)
 	e.GET("/schedules", s.handleListSchedules)
+
+	e.POST("/notify", s.handleNotify)
+	e.GET("/notifications", s.handleListNotifications)
 }
 
 func (s *Server) handleHealth(c echo.Context) error {

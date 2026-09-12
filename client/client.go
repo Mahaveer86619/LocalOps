@@ -33,11 +33,11 @@ func (noopTransport) createTask(ctx context.Context, req createTaskRequest) (str
 	return "", false
 }
 func (noopTransport) updateTask(ctx context.Context, id string, progress int, statusMessage string) {}
-func (noopTransport) heartbeat(ctx context.Context, id string)                             {}
-func (noopTransport) completeTask(ctx context.Context, id string)                          {}
-func (noopTransport) failTask(ctx context.Context, id string, errMsg string)               {}
-func (noopTransport) updateDetails(ctx context.Context, id string, details map[string]any) {}
-func (noopTransport) checkIn(ctx context.Context, name string, req checkinRequest)         {}
+func (noopTransport) heartbeat(ctx context.Context, id string)                                      {}
+func (noopTransport) completeTask(ctx context.Context, id string)                                   {}
+func (noopTransport) failTask(ctx context.Context, id string, errMsg string)                        {}
+func (noopTransport) updateDetails(ctx context.Context, id string, details map[string]any)          {}
+func (noopTransport) checkIn(ctx context.Context, name string, req checkinRequest)                  {}
 
 // httpTransport is the real client, used only when Config.Enabled is true.
 type httpTransport struct {

@@ -28,12 +28,16 @@ gopsutil): Go resolves per-package import graphs, not per-module, so an
 unimported sibling package's deps never leak into the consumer's build.
 
 ```
-cmd/localops/         server binary (Echo API + stuck-task sweep + scheduler)
+cmd/localops/          server binary (Echo API + stuck-task sweep + scheduler)
 cmd/localops-cli/      operator CLI (talks to the server over plain HTTP)
 internal/config/       server-side env config (LOCALOPS_* vars, .env loader)
 internal/tasks/        task model + SQLite store (design doc §4, §9)
 internal/watchers/     watcher model + store + debounced Slack alerting (design doc §13)
 internal/notify/       Slack webhook sender only — no alert-decision logic here
+internal/notifications/ generic, undebounced "force notify" path (POST /notify) -
+                        distinct from internal/watchers' debounced alerting; a caller
+                        that's already decided a message is worth sending posts it
+                        here directly, no state machine involved
 internal/scheduler/    minimal fixed-interval recurring tasks (design doc §17) — not a workflow engine
 internal/health/       stuck-task sweep (design doc §8)
 internal/system/       CPU/RAM/disk/uptime via gopsutil (design doc §11)
@@ -41,13 +45,16 @@ internal/server/       Echo router + handlers implementing design doc §14's RES
 internal/storage/      SQLite connection + migration runner
 migrations/            embedded SQL schema (embed.go exposes it to internal/storage)
 client/                the Go SDK — a plain package, NOT its own module (see above)
-scripts/               bash-only integrations: ping-watch.sh (continuous, change-only
-                        callbacks), ssh-tunnel-check.sh (periodic/cron), task-wrap.sh
-                        (wraps an unmodified existing binary/cron job so it gets Task
-                        tracking via curl, no source changes needed)
-deployments/           systemd units + install guides (local run + persistent install)
+scripts/               task-lib.sh (shared helpers: model a script as one long-running
+                       Task), tunnel-watch.sh / ping-watch.sh (continuous, tmux-run
+                       watchers - normal task updates/heartbeats, plus notify.sh only
+                       on a real state change), notify.sh (POST /notify wrapper),
+                       task-wrap.sh (wraps an unmodified existing binary/cron job so
+                       it gets Task tracking via curl, no source changes needed)
+deployments/           systemd unit + install guides (local run, persistent server
+                       install, tmux-based watchers)
 configs/               example .env for the server
-docs/DESIGN.md          the original design spec (source of truth for intent)
+docs/DESIGN.md         the original design spec (source of truth for intent)
 ```
 
 ## Client SDK (`client/`) contract — do not weaken this
@@ -65,26 +72,45 @@ Enablement rule: real client only when (`PROFILE=staging` OR
 `PROFILE` checks elsewhere — `ConfigFromEnv()` in `client/config.go` is
 the one place that decides.
 
-## Watcher alerting: per-watcher fail_threshold
+**`Task.Status` vs `Task.Description`**: `Status` is the small lifecycle
+enum (created/queued/running/paused/completed/failed/cancelled/stopped) —
+it only ever changes via `Complete`/`Fail`/a control action, never via a
+free-text update. `Description` is where human-readable status *text*
+goes (e.g. "Fetching pending records", "connected", "not connected").
+`client.Handle.Update(progress, statusText)` writes to `Description`, not
+`Status` — this was a real bug once (the SDK sent free text into the
+`status` JSON field and the server dropped it straight into the enum
+column); `tasks.Status.Valid()` now rejects unknown values server-side as
+a second line of defense. Don't reintroduce a path that writes arbitrary
+text into `Status`.
 
-`internal/watchers/service.go`'s alert rule fires when
-`ConsecutiveFails == effectiveThreshold`, where `effectiveThreshold` is
-the watcher's own `FailThreshold` if it registered one (nonzero), else
-the server-wide `LOCALOPS_WATCHER_FAIL_THRESHOLD` default. This exists
-because two very different check-in patterns both need to work:
+## Two alerting paths — don't conflate them
 
-- **Periodic/cron checkers** (e.g. `ssh-tunnel-check.sh`) call check-in
-  on every check, so `ConsecutiveFails` climbs 1-by-1 and the
-  server-side default threshold (e.g. 2) genuinely debounces a single
-  blip.
-- **Continuous daemons** (e.g. `ping-watch.sh`) already debounce
-  locally and only ever send *one* `down` check-in per outage episode —
-  `ConsecutiveFails` would sit at 1 forever if it relied on the global
-  default, so they register with `fail_threshold: 1` (via the checkin
-  payload or `POST /watchers`) so their single report still alerts.
+- **`internal/watchers`** (`POST /watchers/:name/checkin`): a stateful
+  ok/degraded/down machine with server-side debounce
+  (`ConsecutiveFails`/`FailThreshold` in `internal/watchers/service.go`).
+  Use this for a checker that reports *every* check and wants LocalOps to
+  decide when a run of failures becomes alert-worthy.
+- **`internal/notifications`** (`POST /notify`): stateless, undebounced,
+  arbitrary message content. Use this when the *caller* has already
+  decided a message is worth sending — a continuous script that
+  self-debounces before ever reporting a change (see `ping-watch.sh`,
+  `tunnel-watch.sh`), or anything that just wants to force a Slack
+  message on its own terms (`task-wrap.sh --notify`,
+  `localops-cli notify`).
 
-Don't remove the per-watcher override without re-solving this — it's not
-incidental complexity.
+`tunnel-watch.sh`/`ping-watch.sh` deliberately don't use
+`internal/watchers` at all: they model themselves as one long-running
+Task (`scripts/task-lib.sh`) reporting normal updates/heartbeats, and call
+`notify.sh` only on a confirmed state change. The per-watcher
+`FailThreshold` override in `internal/watchers` (registering with
+`fail_threshold: 1`) was an earlier design for making change-only
+reporting work *through* the Watcher debounce path; it's still valid
+code (a periodic/cron-style watcher checker can still use
+`POST /watchers/.../checkin` the normal way) but the two flagship scripts
+now use the simpler Task+notify pattern instead. Don't be surprised the
+Watcher fail-threshold plumbing exists without those two scripts using
+it — it's for whoever *does* want the stateful checkin model.
 
 ## Known gotchas already hit once — don't reintroduce
 
@@ -108,17 +134,18 @@ incidental complexity.
 
 This repo's docs are written generically (placeholders like
 `youruser@remote-host`) for public consumption, but it's actively used
-against one real box. If a task involves actually deploying/configuring
-that box (SSH details, real hostnames, which watcher tracks what),
-that's operational context the user provides per-session — don't assume
-or invent specifics beyond what's in this conversation or a private,
-untracked notes file.
+against one real box, worked in through tmux. If a task involves actually
+deploying/configuring that box (SSH details, real hostnames, which
+watcher tracks what), that's operational context the user provides
+per-session — don't assume or invent specifics beyond what's in this
+conversation or a private, untracked notes file.
 
 ## Testing changes
 
 ```
 go build ./...
 go vet ./...
+gofmt -l .                  # should print nothing
 go run ./cmd/localops        # LOCALOPS_DB_PATH defaults to ./localops.db
 ```
 

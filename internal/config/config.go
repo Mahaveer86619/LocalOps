@@ -12,12 +12,12 @@ import (
 
 // Config holds every knob the LocalOps server itself needs.
 type Config struct {
-	Port                string // e.g. "7717"
-	DBPath              string // SQLite file path
+	Port                 string // e.g. "7717"
+	DBPath               string // SQLite file path
 	SlackWebhookURL      string // empty = alerting disabled
 	WatcherFailThreshold int    // consecutive fails before the first down alert
 	StuckMultiplier      int    // N x expected_heartbeat_s before a running task is "stuck"
-	SweepIntervalS        int    // how often the stuck-task/overdue-watcher sweep runs
+	SweepIntervalS       int    // how often the stuck-task/overdue-watcher sweep runs
 }
 
 // Load reads LOCALOPS_* environment variables (optionally seeded from a

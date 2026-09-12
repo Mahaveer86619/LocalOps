@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
@@ -10,12 +11,12 @@ import (
 )
 
 type createTaskRequest struct {
-	Server      string         `json:"server"`
-	Type        string         `json:"type"`
-	Description string         `json:"description"`
-	PID         *int           `json:"pid,omitempty"`
-	Details     map[string]any `json:"details,omitempty"`
-	ExpectedHeartbeatS int     `json:"expected_heartbeat_s,omitempty"`
+	Server             string         `json:"server"`
+	Type               string         `json:"type"`
+	Description        string         `json:"description"`
+	PID                *int           `json:"pid,omitempty"`
+	Details            map[string]any `json:"details,omitempty"`
+	ExpectedHeartbeatS int            `json:"expected_heartbeat_s,omitempty"`
 }
 
 func (s *Server) handleCreateTask(c echo.Context) error {
@@ -80,6 +81,9 @@ func (s *Server) handleUpdateTask(c echo.Context) error {
 	var status *tasks.Status
 	if req.Status != nil {
 		st := tasks.Status(*req.Status)
+		if !st.Valid() {
+			return c.JSON(http.StatusBadRequest, errBody(fmt.Errorf("invalid status %q", *req.Status)))
+		}
 		status = &st
 	}
 	t, err := s.tasks.Update(c.Request().Context(), c.Param("id"), req.Progress, status, req.Description, req.Details)

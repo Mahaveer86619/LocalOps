@@ -91,5 +91,5 @@ client.CheckIn(ctx, "flipkart-vpn-ping", "down", "ping timeout", nil)
 ```
 
 A non-Go checker doesn't need this package at all — see
-[`server/scripts/ping-check.sh`](../server/scripts/ping-check.sh) for the
-plain-bash equivalent.
+[`scripts/ping-watch.sh`](../scripts/ping-watch.sh) and
+[`scripts/notify.sh`](../scripts/notify.sh) for the plain-bash equivalent.

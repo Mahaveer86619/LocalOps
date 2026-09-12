@@ -18,10 +18,10 @@ import (
 // Monitor periodically scans running tasks for staleness and alerts once
 // per stuck episode (not once per sweep tick).
 type Monitor struct {
-	Tasks            *tasks.Store
-	Notifier         *notify.Slack
-	StuckMultiplier  int
-	SweepInterval    time.Duration
+	Tasks           *tasks.Store
+	Notifier        *notify.Slack
+	StuckMultiplier int
+	SweepInterval   time.Duration
 
 	mu      sync.Mutex
 	alerted map[string]bool // task IDs already alerted for the current stuck episode

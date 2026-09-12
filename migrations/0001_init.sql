@@ -61,6 +61,20 @@ CREATE TABLE IF NOT EXISTS watcher_events (
 
 CREATE INDEX IF NOT EXISTS idx_watcher_events_watcher_id ON watcher_events(watcher_id, id);
 
+-- Ad-hoc, undebounced Slack notifications (POST /notify): a script that
+-- already knows it wants to alert (it's done its own local
+-- debounce/state-change detection) just sends a message, no LocalOps-side
+-- state machine involved. Kept for history/`localops-cli notifications`.
+CREATE TABLE IF NOT EXISTS notifications (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    source     TEXT NOT NULL DEFAULT '',
+    level      TEXT NOT NULL DEFAULT 'info', -- info | warning | critical
+    message    TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at);
+
 CREATE TABLE IF NOT EXISTS schedules (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     name          TEXT NOT NULL UNIQUE,

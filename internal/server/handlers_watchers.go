@@ -10,9 +10,9 @@ import (
 )
 
 type registerWatcherRequest struct {
-	Name              string         `json:"name"`
-	Kind              string         `json:"kind"`
-	ExpectedIntervalS int            `json:"expected_interval_s"`
+	Name              string `json:"name"`
+	Kind              string `json:"kind"`
+	ExpectedIntervalS int    `json:"expected_interval_s"`
 	// FailThreshold overrides the server-wide consecutive-fails-before-
 	// alert default for this watcher; 0 keeps the default. Set this to 1
 	// for a continuous checker that only calls back on state change (it

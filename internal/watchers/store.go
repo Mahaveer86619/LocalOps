@@ -137,7 +137,7 @@ func (s *Store) List(ctx context.Context) ([]Watcher, error) {
 // to decide whether this check-in crosses an alerting threshold, without
 // the store needing to know anything about Slack.
 type CheckInResult struct {
-	Watcher      Watcher
+	Watcher       Watcher
 	PreviousState State
 }
 

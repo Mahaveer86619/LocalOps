@@ -165,11 +165,26 @@ else
 fi
 ```
 
-Two ready-to-use variants live in [`scripts/`](scripts/):
-[`ping-watch.sh`](scripts/ping-watch.sh) is a continuous daemon that only
-calls back **on state change** (rather than on every check), and
-[`task-wrap.sh`](scripts/task-wrap.sh) wraps an existing binary or cron
-job — unmodified — so it shows up as a tracked Task.
+Ready-to-use scripts live in [`scripts/`](scripts/) — meant to run as
+long-lived tmux panes, not cron:
+
+- [`tunnel-watch.sh`](scripts/tunnel-watch.sh) / [`ping-watch.sh`](scripts/ping-watch.sh)
+  each model themselves as **one Task** for their whole run (status text
+  like "connected" / "not connected" via normal task updates +
+  heartbeats), and call `notify.sh` to force a Slack message only on a
+  real state change — never on every check.
+- [`notify.sh`](scripts/notify.sh) forces an immediate, undebounced Slack
+  message with any content via `POST /notify` — for when a script has
+  already decided something is worth alerting on, on its own terms.
+- [`task-wrap.sh`](scripts/task-wrap.sh) wraps an existing binary or cron
+  job — unmodified — so it shows up as a tracked Task.
+
+```bash
+./notify.sh "something worth knowing about" warning my-script
+# or, once the server is up:
+localops-cli notify "something worth knowing about" warning my-script
+localops-cli notifications   # recent force-notify history
+```
 
 ### The CLI
 

@@ -16,18 +16,18 @@ import (
 
 // Snapshot is a point-in-time read of host health.
 type Snapshot struct {
-	CPUPercent   float64   `json:"cpu_percent"`
-	MemPercent   float64   `json:"mem_percent"`
-	MemUsedBytes uint64    `json:"mem_used_bytes"`
-	MemTotalBytes uint64   `json:"mem_total_bytes"`
-	DiskPercent  float64   `json:"disk_percent"`
-	DiskUsedBytes uint64   `json:"disk_used_bytes"`
-	DiskTotalBytes uint64  `json:"disk_total_bytes"`
-	UptimeSeconds uint64   `json:"uptime_seconds"`
-	Load1        float64   `json:"load1"`
-	Load5        float64   `json:"load5"`
-	Load15       float64   `json:"load15"`
-	Timestamp    time.Time `json:"timestamp"`
+	CPUPercent     float64   `json:"cpu_percent"`
+	MemPercent     float64   `json:"mem_percent"`
+	MemUsedBytes   uint64    `json:"mem_used_bytes"`
+	MemTotalBytes  uint64    `json:"mem_total_bytes"`
+	DiskPercent    float64   `json:"disk_percent"`
+	DiskUsedBytes  uint64    `json:"disk_used_bytes"`
+	DiskTotalBytes uint64    `json:"disk_total_bytes"`
+	UptimeSeconds  uint64    `json:"uptime_seconds"`
+	Load1          float64   `json:"load1"`
+	Load5          float64   `json:"load5"`
+	Load15         float64   `json:"load15"`
+	Timestamp      time.Time `json:"timestamp"`
 }
 
 // Read gathers a fresh Snapshot. diskPath is the mount point to report on

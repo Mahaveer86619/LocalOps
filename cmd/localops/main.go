@@ -12,6 +12,7 @@ import (
 
 	"github.com/Mahaveer86619/LocalOps/internal/config"
 	"github.com/Mahaveer86619/LocalOps/internal/health"
+	"github.com/Mahaveer86619/LocalOps/internal/notifications"
 	"github.com/Mahaveer86619/LocalOps/internal/notify"
 	"github.com/Mahaveer86619/LocalOps/internal/scheduler"
 	"github.com/Mahaveer86619/LocalOps/internal/server"
@@ -38,12 +39,13 @@ func main() {
 
 	slack := notify.New(cfg.SlackWebhookURL)
 	watcherSvc := watchers.NewService(watcherStore, slack, cfg.WatcherFailThreshold)
+	notificationStore := notifications.NewStore(db, slack)
 
 	diskPath := "/"
 	if os.PathSeparator == '\\' {
 		diskPath = "C:"
 	}
-	srv := server.New(taskStore, watcherSvc, scheduleStore, diskPath)
+	srv := server.New(taskStore, watcherSvc, scheduleStore, notificationStore, diskPath)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

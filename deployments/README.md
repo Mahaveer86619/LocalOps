@@ -2,15 +2,16 @@
 
 These guides assume the typical target: a small, always-on Linux box on
 your local network, reached over SSH (directly or via Tailscale/similar),
-that already runs a few things worth tracking — a tunnel, a periodic job,
-a reachability check. Adjust paths/users below to taste; nothing here is
-mini-PC-specific.
+normally worked in through tmux — LocalOps is meant to coexist with that,
+not replace it.
 
 - [Local run](#local-run) — fastest way to get LocalOps up and poke at it
   with curl, no systemd required.
 - [Persistent install](#persistent-install) — survive reboots, via systemd.
-- [Wiring up watchers & tasks](#wiring-up-watchers--tasks) — connect the
-  box's existing tunnel/cron jobs/reachability checks.
+- [Watchers in tmux](#watchers-in-tmux) — the SSH tunnel and reachability
+  checkers, as long-running panes.
+- [Tracking an existing cron job](#tracking-an-existing-cron-job) — wrap
+  it, unmodified, as a Task.
 
 ## Local run
 
@@ -21,8 +22,8 @@ For trying LocalOps out, or iterating on it directly on the box.
 GOOS=linux GOARCH=amd64 go build -o localops ./cmd/localops
 GOOS=linux GOARCH=amd64 go build -o localops-cli ./cmd/localops-cli
 
-# Run it in the foreground (or inside tmux/screen) - a plain SQLite file
-# in the working directory, default port 7717, no config needed:
+# Run it in the foreground (or inside tmux) - a plain SQLite file in the
+# working directory, default port 7717, no config needed:
 ./localops
 ```
 
@@ -48,8 +49,9 @@ to make it persistent.
 
 ## Persistent install
 
-Once you're happy with it, install as a systemd service so it survives
-reboots and restarts on crash.
+Once you're happy with it, install the **server** as a systemd service so
+it survives reboots and restarts on crash. (The watchers below are
+different — they run in tmux, not systemd; see the next section.)
 
 ```bash
 sudo mkdir -p /opt/localops
@@ -65,54 +67,68 @@ sudo systemctl enable --now localops
 Verify: `curl -s localhost:7717/health`.
 
 At minimum, edit `/opt/localops/.env` to set `LOCALOPS_SLACK_WEBHOOK_URL`
-if you want Slack alerts (README §13.4) — everything else has a sane
-default (see [`configs/localops.example.env`](../configs/localops.example.env)).
+if you want Slack alerts — everything else has a sane default (see
+[`configs/localops.example.env`](../configs/localops.example.env)).
 
-## Wiring up watchers & tasks
+## Watchers in tmux
 
-LocalOps only does anything once something reports to it. Three patterns
-cover almost everything (README §13.3, §6):
-
-| Pattern | Use for | How |
-|---|---|---|
-| **Continuous watcher daemon** | a standing condition you want checked frequently, reported only on change | [`scripts/ping-watch.sh`](../scripts/ping-watch.sh) + [`deployments/ping-watch.service`](ping-watch.service) |
-| **Periodic watcher script** | a standing condition checked on a cron/timer cadence | [`scripts/ssh-tunnel-check.sh`](../scripts/ssh-tunnel-check.sh) via cron |
-| **Task wrapper** | an existing binary/cron job you don't want to modify, but want tracked as a Task | [`scripts/task-wrap.sh`](../scripts/task-wrap.sh) |
-
-### Example: a reachability check, continuously
+The SSH tunnel and reachability checks are plain bash scripts meant to
+run as long-lived tmux panes, one tmux session per box (matching how
+you'd normally work on it anyway):
 
 ```bash
-sudo cp scripts/ping-watch.sh /opt/localops/scripts/
-sudo cp deployments/ping-watch.service /etc/systemd/system/
-# edit the unit's Environment= lines for your TARGET_HOST/WATCHER_NAME
-sudo systemctl daemon-reload
-sudo systemctl enable --now ping-watch
+tmux new -s localops-watch
+
+# pane 1
+cd /opt/localops/scripts
+MATCH_PATTERN="youruser@remote-host" ./tunnel-watch.sh
+
+# pane 2 (tmux split)
+cd /opt/localops/scripts
+TARGET_HOST=172.18.36.78 ./ping-watch.sh
 ```
 
-It reports `ok`/`down` to LocalOps **only when the state actually
-changes** — see the script header for `DOWN_THRESHOLD`/`UP_THRESHOLD` if
-you want more (or less) local debounce before it calls back.
+Detach with `Ctrl-b d` — they keep running. Reattach any time with
+`tmux attach -t localops-watch`.
 
-### Example: a persistent tunnel, checked every minute via cron
+Each script models itself as **one Task** for as long as it runs
+(`localops-cli tasks` shows it, description holds its current status text
+— e.g. "connected" / "not connected" for the tunnel, "ok: ... reachable"
+/ "down: ... unreachable" for the ping check) and reports via normal task
+updates + heartbeats. Neither one debounces through LocalOps' Watcher
+state machine — they decide locally when something's actually a state
+change (see `DOWN_THRESHOLD`/`UP_THRESHOLD` in `ping-watch.sh`) and then
+call [`notify.sh`](../scripts/notify.sh) to force an immediate,
+undebounced Slack message via `POST /notify`. That endpoint takes any
+message content — it's also what you'd reach for from any other script
+that wants to alert on its own terms:
 
-```cron
-* * * * * MATCH_PATTERN="youruser@remote-host" WATCHER_NAME=office-tunnel /opt/localops/scripts/ssh-tunnel-check.sh
+```bash
+./notify.sh "something worth knowing about" warning my-script
+# or: localops-cli notify "something worth knowing about" warning my-script
 ```
 
-### Example: tracking an existing cron job as a Task, unmodified
+`localops-cli notifications` shows recent force-notify history.
+
+## Tracking an existing cron job
+
+For a job you don't want to modify, wrap it instead of touching its
+source — same schedule, now visible in `localops-cli tasks`:
 
 ```cron
 0 2 * * * /opt/localops/scripts/task-wrap.sh --server myapp --type maintenance \
-  --description "Daily DB dump" --watcher db-dump-freshness -- /path/to/your/dump-script.sh
+  --description "Daily DB dump" -- /path/to/your/dump-script.sh
 ```
 
-Same schedule as before, now visible in `localops-cli tasks` and
-alerting through `db-dump-freshness` if it fails.
+See [`scripts/task-wrap.sh`](../scripts/task-wrap.sh) for details
+(heartbeats while it runs, completes/fails the task from the wrapped
+command's exit code).
 
 ### Going further: the Go SDK
 
 Once an application can be modified directly, replace its wrapper/cron
 integration with real `client.Start/Update/Heartbeat/Complete` calls (see
 [`client/README.md`](../client/README.md)) for actual progress reporting
-instead of just start/end — see README §6 for the full pattern (including
-the `PROFILE=staging` gate that keeps this a zero-risk, opt-in change).
+instead of just start/end — see [docs/DESIGN.md §6](../docs/DESIGN.md#6-go-integration-sdk)
+for the full pattern (including the `PROFILE=staging` gate that keeps
+this a zero-risk, opt-in change).
