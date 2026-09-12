@@ -1,0 +1,16 @@
+[Unit]
+Description=LocalOps task/watcher control plane
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=localops
+WorkingDirectory=/opt/localops
+EnvironmentFile=/opt/localops/.env
+ExecStart=/opt/localops/localops
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

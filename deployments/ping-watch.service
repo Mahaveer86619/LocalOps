@@ -1,0 +1,18 @@
+[Unit]
+Description=LocalOps continuous ping watcher
+After=network-online.target localops.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=/opt/localops
+Environment=TARGET_HOST=172.18.36.78
+Environment=WATCHER_NAME=third-party-ping
+Environment=LOCALOPS_URL=http://localhost:7717
+ExecStart=/opt/localops/scripts/ping-watch.sh
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
