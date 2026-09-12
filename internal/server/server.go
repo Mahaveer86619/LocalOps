@@ -20,28 +20,41 @@ import (
 type Server struct {
 	Echo *echo.Echo
 
-	tasks         *tasks.Store
-	watchers      *watchers.Service
-	schedules     *scheduler.Store
-	notifications *notifications.Store
-	diskPath      string
-	startedAt     time.Time
+	tasks              *tasks.Store
+	watchers           *watchers.Service
+	schedules          *scheduler.Store
+	notifications      *notifications.Store
+	diskPath           string
+	slackSigningSecret string
+	startedAt          time.Time
 }
 
-func New(taskStore *tasks.Store, watcherSvc *watchers.Service, scheduleStore *scheduler.Store, notificationStore *notifications.Store, diskPath string) *Server {
+// Options bundles New's dependencies - grown past the point a positional
+// parameter list stays readable.
+type Options struct {
+	Tasks              *tasks.Store
+	Watchers           *watchers.Service
+	Schedules          *scheduler.Store
+	Notifications      *notifications.Store
+	DiskPath           string
+	SlackSigningSecret string // empty = POST /slack/commands always rejects
+}
+
+func New(opts Options) *Server {
 	e := echo.New()
 	e.HideBanner = true
 	e.Use(middleware.Recover())
 	e.Use(middleware.Logger())
 
 	s := &Server{
-		Echo:          e,
-		tasks:         taskStore,
-		watchers:      watcherSvc,
-		schedules:     scheduleStore,
-		notifications: notificationStore,
-		diskPath:      diskPath,
-		startedAt:     time.Now().UTC(),
+		Echo:               e,
+		tasks:              opts.Tasks,
+		watchers:           opts.Watchers,
+		schedules:          opts.Schedules,
+		notifications:      opts.Notifications,
+		diskPath:           opts.DiskPath,
+		slackSigningSecret: opts.SlackSigningSecret,
+		startedAt:          time.Now().UTC(),
 	}
 	s.routes()
 	return s
@@ -78,6 +91,8 @@ func (s *Server) routes() {
 
 	e.POST("/notify", s.handleNotify)
 	e.GET("/notifications", s.handleListNotifications)
+
+	e.POST("/slack/commands", s.handleSlackCommand)
 }
 
 func (s *Server) handleHealth(c echo.Context) error {

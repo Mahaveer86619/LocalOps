@@ -45,7 +45,14 @@ func main() {
 	if os.PathSeparator == '\\' {
 		diskPath = "C:"
 	}
-	srv := server.New(taskStore, watcherSvc, scheduleStore, notificationStore, diskPath)
+	srv := server.New(server.Options{
+		Tasks:              taskStore,
+		Watchers:           watcherSvc,
+		Schedules:          scheduleStore,
+		Notifications:      notificationStore,
+		DiskPath:           diskPath,
+		SlackSigningSecret: cfg.SlackSigningSecret,
+	})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -58,7 +65,7 @@ func main() {
 
 	go func() {
 		addr := ":" + cfg.Port
-		log.Printf("localops: listening on %s (db=%s, slack=%v)", addr, cfg.DBPath, cfg.SlackWebhookURL != "")
+		log.Printf("localops: listening on %s (db=%s, slack_alerts=%v, slack_commands=%v)", addr, cfg.DBPath, cfg.SlackWebhookURL != "", cfg.SlackSigningSecret != "")
 		if err := srv.Echo.Start(addr); err != nil {
 			log.Printf("localops: server stopped: %v", err)
 			cancel()

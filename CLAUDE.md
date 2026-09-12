@@ -38,6 +38,9 @@ internal/notifications/ generic, undebounced "force notify" path (POST /notify) 
                         distinct from internal/watchers' debounced alerting; a caller
                         that's already decided a message is worth sending posts it
                         here directly, no state machine involved
+internal/slack/        verifies INBOUND Slack requests (slash commands' HMAC
+                        signature) - the opposite direction from internal/notify,
+                        which only ever sends outbound
 internal/scheduler/    minimal fixed-interval recurring tasks (design doc §17) — not a workflow engine
 internal/health/       stuck-task sweep (design doc §8)
 internal/system/       CPU/RAM/disk/uptime via gopsutil (design doc §11)

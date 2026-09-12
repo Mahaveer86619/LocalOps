@@ -15,6 +15,7 @@ type Config struct {
 	Port                 string // e.g. "7717"
 	DBPath               string // SQLite file path
 	SlackWebhookURL      string // empty = alerting disabled
+	SlackSigningSecret   string // empty = inbound Slack slash commands rejected (POST /slack/commands)
 	WatcherFailThreshold int    // consecutive fails before the first down alert
 	StuckMultiplier      int    // N x expected_heartbeat_s before a running task is "stuck"
 	SweepIntervalS       int    // how often the stuck-task/overdue-watcher sweep runs
@@ -28,6 +29,7 @@ func Load() Config {
 		Port:                 getEnv("LOCALOPS_PORT", "7717"),
 		DBPath:               getEnv("LOCALOPS_DB_PATH", "localops.db"),
 		SlackWebhookURL:      os.Getenv("LOCALOPS_SLACK_WEBHOOK_URL"),
+		SlackSigningSecret:   os.Getenv("LOCALOPS_SLACK_SIGNING_SECRET"),
 		WatcherFailThreshold: getEnvInt("LOCALOPS_WATCHER_FAIL_THRESHOLD", 2),
 		StuckMultiplier:      getEnvInt("LOCALOPS_STUCK_MULTIPLIER", 3),
 		SweepIntervalS:       getEnvInt("LOCALOPS_SWEEP_INTERVAL_S", 30),

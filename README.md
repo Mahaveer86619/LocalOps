@@ -186,6 +186,18 @@ localops-cli notify "something worth knowing about" warning my-script
 localops-cli notifications   # recent force-notify history
 ```
 
+### Slack slash commands
+
+`POST /slack/commands` serves `/health`, `/status`, `/tasks`, `/task <id>`,
+`/watchers`, `/watcher <name>`, and `/notify <message>` — the same data
+the CLI shows, from Slack. Requires `LOCALOPS_SLACK_SIGNING_SECRET` (from
+the Slack app's Basic Information page) and, since Slack must reach this
+over the public internet, some form of tunnel to your local server —
+[Tailscale Funnel](https://tailscale.com/kb/1223/funnel) is the natural
+fit if you're already on Tailscale. Point every slash command's Request
+URL at `https://<your-funnel-hostname>/slack/commands`; the one endpoint
+routes on the command name, so they can all share it.
+
 ### The CLI
 
 ```bash
@@ -209,6 +221,7 @@ Set `LOCALOPS_URL` to point it at a non-default server.
 | `LOCALOPS_PORT` | `7717` | HTTP listen port |
 | `LOCALOPS_DB_PATH` | `localops.db` | SQLite file path |
 | `LOCALOPS_SLACK_WEBHOOK_URL` | *(unset)* | Slack incoming webhook; unset disables alerting only, not tracking |
+| `LOCALOPS_SLACK_SIGNING_SECRET` | *(unset)* | Slack app Signing Secret; unset rejects all inbound slash commands (`POST /slack/commands`) |
 | `LOCALOPS_WATCHER_FAIL_THRESHOLD` | `2` | consecutive `down` check-ins before the first alert (per-watcher override via `fail_threshold`) |
 | `LOCALOPS_STUCK_MULTIPLIER` | `3` | × a task's expected heartbeat interval before it's flagged stuck |
 | `LOCALOPS_SWEEP_INTERVAL_S` | `30` | how often the stuck-task sweep and scheduler tick |
