@@ -60,12 +60,17 @@ func main() {
 	monitor := health.NewMonitor(taskStore, slack, cfg.StuckMultiplier, time.Duration(cfg.SweepIntervalS)*time.Second)
 	go monitor.Run(ctx)
 
+	if cfg.SlackAppToken != "" {
+		socketClient := server.NewSocketModeClient(cfg.SlackAppToken, srv)
+		go socketClient.Run(ctx)
+	}
+
 	runner := scheduler.NewRunner(scheduleStore, taskStore, time.Duration(cfg.SweepIntervalS)*time.Second)
 	go runner.Run(ctx)
 
 	go func() {
 		addr := ":" + cfg.Port
-		log.Printf("localops: listening on %s (db=%s, slack_alerts=%v, slack_commands=%v)", addr, cfg.DBPath, cfg.SlackWebhookURL != "", cfg.SlackSigningSecret != "")
+		log.Printf("localops: listening on %s (db=%s, slack_alerts=%v, slack_commands_http=%v, slack_commands_socket=%v)", addr, cfg.DBPath, cfg.SlackWebhookURL != "", cfg.SlackSigningSecret != "", cfg.SlackAppToken != "")
 		if err := srv.Echo.Start(addr); err != nil {
 			log.Printf("localops: server stopped: %v", err)
 			cancel()

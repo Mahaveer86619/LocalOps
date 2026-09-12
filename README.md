@@ -188,15 +188,24 @@ localops-cli notifications   # recent force-notify history
 
 ### Slack slash commands
 
-`POST /slack/commands` serves `/health`, `/status`, `/tasks`, `/task <id>`,
-`/watchers`, `/watcher <name>`, and `/notify <message>` — the same data
-the CLI shows, from Slack. Requires `LOCALOPS_SLACK_SIGNING_SECRET` (from
-the Slack app's Basic Information page) and, since Slack must reach this
-over the public internet, some form of tunnel to your local server —
-[Tailscale Funnel](https://tailscale.com/kb/1223/funnel) is the natural
-fit if you're already on Tailscale. Point every slash command's Request
-URL at `https://<your-funnel-hostname>/slack/commands`; the one endpoint
-routes on the command name, so they can all share it.
+`/health`, `/status`, `/tasks`, `/task <id>`, `/watchers`,
+`/watcher <name>`, and `/notify <message>` — the same data the CLI shows,
+from Slack. Two delivery paths, pick one:
+
+- **Socket Mode** (recommended): enable it under the Slack app's
+  **Settings > Socket Mode**, create an app-level token (`xapp-...`,
+  `connections:write` scope) under **Basic Information > App-Level
+  Tokens**, and set `LOCALOPS_SLACK_APP_TOKEN`. LocalOps opens an
+  *outbound* WebSocket to Slack — no public endpoint, no tunnel, nothing
+  to expose. This is required if Socket Mode is on for the app; Slack
+  ignores the Request URL entirely in that case.
+- **HTTP Request URL** (Socket Mode off): set `LOCALOPS_SLACK_SIGNING_SECRET`
+  (Basic Information page) and point every slash command's Request URL at
+  `https://<your-public-host>/slack/commands` — some tunnel to your local
+  server is needed since Slack must reach it over the public internet;
+  [Tailscale Funnel](https://tailscale.com/kb/1223/funnel) is a natural
+  fit if you're already on Tailscale. One endpoint routes on the command
+  name, so every command can share the same URL.
 
 ### The CLI
 
@@ -221,7 +230,8 @@ Set `LOCALOPS_URL` to point it at a non-default server.
 | `LOCALOPS_PORT` | `7717` | HTTP listen port |
 | `LOCALOPS_DB_PATH` | `localops.db` | SQLite file path |
 | `LOCALOPS_SLACK_WEBHOOK_URL` | *(unset)* | Slack incoming webhook; unset disables alerting only, not tracking |
-| `LOCALOPS_SLACK_SIGNING_SECRET` | *(unset)* | Slack app Signing Secret; unset rejects all inbound slash commands (`POST /slack/commands`) |
+| `LOCALOPS_SLACK_APP_TOKEN` | *(unset)* | Slack app-level token (`xapp-...`); enables Socket Mode - slash commands over an outbound WebSocket, no public endpoint needed |
+| `LOCALOPS_SLACK_SIGNING_SECRET` | *(unset)* | only for the HTTP alternative to Socket Mode; unset rejects `POST /slack/commands` |
 | `LOCALOPS_WATCHER_FAIL_THRESHOLD` | `2` | consecutive `down` check-ins before the first alert (per-watcher override via `fail_threshold`) |
 | `LOCALOPS_STUCK_MULTIPLIER` | `3` | × a task's expected heartbeat interval before it's flagged stuck |
 | `LOCALOPS_SWEEP_INTERVAL_S` | `30` | how often the stuck-task sweep and scheduler tick |
